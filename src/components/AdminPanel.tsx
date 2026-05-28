@@ -292,7 +292,7 @@ export default function AdminPanel() {
       .join('');
 
     return parsed
-      .replace(/[^a-z0-0\s-]/g, '')
+      .replace(/[^a-z0-9\s-]/g, '')
       .trim()
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-');
@@ -307,47 +307,45 @@ export default function AdminPanel() {
   // --- ACTIONS HANDLERS ---
 
   // Secure Auth Helpers
-  const handleGoogleSignIn = async () => {
-    setLoginError('');
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      triggerToast('গুগল অ্যাকাউন্টের মাধ্যমে সফলভাবে লগইন করা হয়েছে!');
-    } catch (err) {
-      console.error(err);
-      setLoginError('গুগল সাইন-ইন সম্পন্ন করা সম্ভব হয়নি। অনুগ্রহ করে ডেমো পাসওয়ার্ড দিয়ে চেষ্টা করুন।');
-    }
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setShowSuccessToast(true);
+    setTimeout(() => {
+      setShowSuccessToast(false);
+    }, 4000);
   };
 
   const handleCustomLogin = (e: FormEvent) => {
     e.preventDefault();
-    setLoginError('');
     if (customUsername.trim() === 'admin' && customPassword === 'admin') {
       setSessionAuth(true);
       sessionStorage.setItem('annapurna_session_auth', 'true');
-      window.dispatchEvent(new Event('storage'));
-      triggerToast('ডেমো রাইটার ক্রেডেনশিয়াল দিয়ে সফলভাবে লগইন করা হয়েছে!');
+      triggerToast('এডমিন অ্যাকাউন্টে সফলভাবে লগইন হয়েছে!');
     } else {
-      setLoginError('ভুল ইউজার আইডি অথবা পাসওয়ার্ড! অনুগ্রহ করে সঠিক তথ্য দিন।');
+      setLoginError('ভুল আইডি বা পাসওয়ার্ড!');
     }
   };
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await auth.signOut();
       setSessionAuth(false);
       sessionStorage.removeItem('annapurna_session_auth');
-      window.dispatchEvent(new Event('storage'));
-      triggerToast('সফলভাবে সিকিউর কন্ট্রোল প্যানেল থেকে লগআউট করা হয়েছে।');
+      triggerToast('সফলভাবে সাইন-আউট করা হয়েছে!');
     } catch (e) {
       console.error(e);
     }
   };
 
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setShowSuccessToast(true);
-    setTimeout(() => setShowSuccessToast(false), 3000);
+  const handleGoogleSignIn = async () => {
+    setLoginError('');
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      triggerToast('গুগল অ্যাকাউন্টের মাধ্যমে সফলভাবে সাইন-ইন করা হয়েছে!');
+    } catch (e: any) {
+      setLoginError(e.message || 'সাইন-ইন করতে সমস্যা হয়েছে!');
+    }
   };
 
   // Post Submission (Create or Edit)
@@ -372,6 +370,26 @@ export default function AdminPanel() {
     };
 
     try {
+      if (!currentUser) {
+        const id = editingPostId || `custom-news-${Date.now()}`;
+        const finalPost = { ...postPayload, id };
+        const storedPostsString = localStorage.getItem('annapurna_news_articles_2026');
+        const storedPosts = storedPostsString ? JSON.parse(storedPostsString) : [];
+        let updatedPosts;
+        if (editingPostId) {
+          updatedPosts = storedPosts.map((p: any) => p.id === editingPostId ? { ...p, ...finalPost } : p);
+        } else {
+          updatedPosts = [finalPost, ...storedPosts];
+        }
+        localStorage.setItem('annapurna_news_articles_2026', JSON.stringify(updatedPosts));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: নিউজ নিবন্ধটি লোকালি সেভ করা হয়েছে! ডাটাবেসে আপডেট করতে গুগল লগইন ব্যবহার করুন।");
+        setPosts(updatedPosts);
+        setIsCreatingNewPost(false);
+        resetPostForm();
+        return;
+      }
+
       if (editingPostId) {
         await updatePost(editingPostId, postPayload);
         triggerToast("নিউজ পোস্টটি সফলভাবে এডিট ও ক্লাউড ডাটাবেজে আপডেট করা হয়েছে!");
@@ -386,11 +404,20 @@ export default function AdminPanel() {
       // Close pane
       setIsCreatingNewPost(false);
       resetPostForm();
-    } catch (e) {
-      alert("ত্রুটি: Firestore-এ খবর ডাটাবেজে লিখতে ব্যর্থ। অনুগ্রহ করে এডমিন পারমিশন চেক করুন।");
+    } catch (e: any) {
+      let extMsg = "";
+      if (e && e.message) {
+        try {
+          const parsed = JSON.parse(e.message);
+          if (parsed && parsed.error) extMsg = "\n\nError details: " + parsed.error;
+          else extMsg = "\n\nError details: " + e.message;
+        } catch (_) {
+          extMsg = "\n\nError details: " + e.message;
+        }
+      }
+      alert("ত্রুটি: Firestore-এ খবর ডাটাবেজে লিখতে ব্যর্থ। অনুগ্রহ করে এডমিন পারমিশন চেক করুন।" + extMsg);
     }
   };
-
   const resetPostForm = () => {
     setFormTitle('');
     setFormSlug('');
@@ -421,6 +448,16 @@ export default function AdminPanel() {
   const handleDeletePost = async (id: string) => {
     if (window.confirm("আপনি কি নিশ্চিতভাবে এই খবরটি মুছে ফেলতে চান? এটি চিরতরে ক্লাউড ডাটাবেজ থেকে মুছে যাবে।")) {
       try {
+        if (!currentUser) {
+          const storedPostsString = localStorage.getItem('annapurna_news_articles_2026');
+          const storedPosts = storedPostsString ? JSON.parse(storedPostsString) : [];
+          const updated = storedPosts.filter((p: any) => p.id !== id);
+          localStorage.setItem('annapurna_news_articles_2026', JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+          triggerToast("ডেমো মোড: খবরটি লোকালি মুছে ফেলা হয়েছে!");
+          setPosts(updated);
+          return;
+        }
         await deletePost(id);
         triggerToast("পোস্টটি সফলভাবে মুছে ফেলা হয়েছে!");
         await loadDatabase();
@@ -445,6 +482,20 @@ export default function AdminPanel() {
     };
 
     try {
+      if (!currentUser) {
+        const storedTickersString = localStorage.getItem('annapurna_tickers_2026');
+        const storedTickers = storedTickersString ? JSON.parse(storedTickersString) : [];
+        const updated = [payload, ...storedTickers.filter((tk: any) => tk.id !== id)];
+        localStorage.setItem('annapurna_tickers_2026', JSON.stringify(updated));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: ব্রেকিং নিউজ টিকার লোকালি সেভ করা হয়েছে!");
+        setTickers(updated);
+        setTickerText('');
+        setTickerLink('');
+        setTickerActive(true);
+        setEditingTickerId(null);
+        return;
+      }
       await saveTicker(payload);
       triggerToast("ব্রেকিং নিউজ টিকার সফলভাবে আপডেট করা হয়েছে!");
       setTickerText('');
@@ -460,6 +511,16 @@ export default function AdminPanel() {
   const handleDeleteTicker = async (id: string) => {
     if (window.confirm("টিকারটি ডিলিট করতে চান?")) {
       try {
+        if (!currentUser) {
+          const storedTickersString = localStorage.getItem('annapurna_tickers_2026');
+          const storedTickers = storedTickersString ? JSON.parse(storedTickersString) : [];
+          const updated = storedTickers.filter((t: any) => t.id !== id);
+          localStorage.setItem('annapurna_tickers_2026', JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+          triggerToast("ডেমো মোড: টিকার লোকালি রিমুভ করা হয়েছে!");
+          setTickers(updated);
+          return;
+        }
         await deleteTicker(id);
         triggerToast("টিকার সফলভাবে ডিলিট করা হয়েছে!");
         await loadDatabase();
@@ -486,13 +547,30 @@ export default function AdminPanel() {
         { id: 'ad-in-article-2', type: 'rectangle', active: adActiveIn2, code: adCodeInArticle2, title: "In-Article 2", ctaText: "Apply", linkUrl: "" },
       ];
 
+      if (!currentUser) {
+        localStorage.setItem('annapurna_ad_settings_2026', JSON.stringify(adsList));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: অ্যাডস কোড লোকালি সেভ করা হয়েছে! ডাটাবেসে আপডেট করতে গুগল সাইন-ইন ব্যবহার করুন।");
+        return;
+      }
+
       for (const item of adsList) {
         await saveAd(item as any);
       }
       triggerToast("AdSense কোড এবং ব্যানার কনফিগারেশন সফলভাবে ক্লাউডে সেভ করা হয়েছে!");
       await loadDatabase();
-    } catch (e) {
-      alert("অ্যাডস কোড আপলোড করতে ত্রুটি!");
+    } catch (e: any) {
+      let extMsg = "";
+      if (e && e.message) {
+        try {
+          const parsed = JSON.parse(e.message);
+          if (parsed && parsed.error) extMsg = "\n\nError details: " + parsed.error;
+          else extMsg = "\n\nError details: " + e.message;
+        } catch (_) {
+          extMsg = "\n\nError details: " + e.message;
+        }
+      }
+      alert("অ্যাডস কোড আপলোড করতে ত্রুটি!" + extMsg);
     }
   };
 
@@ -511,11 +589,29 @@ export default function AdminPanel() {
         googleAnalyticsId: seoGoogleAnalyticsId,
         googleAdSenseId: seoGoogleAdSenseId
       };
+
+      if (!currentUser) {
+        localStorage.setItem('annapurna_seo_settings_2026', JSON.stringify(data));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: ওয়েবসাইট এসইও মেটা লোকালি সেভ করা হয়েছে!");
+        return;
+      }
+
       await saveSeoSettings(data);
       triggerToast("ওয়েবসাইট SEO মেটা সেটিংস সফলভাবে ক্লাউডে লাইভ করা হয়েছে!");
       await loadDatabase();
-    } catch (e) {
-      alert("ত্রুটি।");
+    } catch (e: any) {
+      let extMsg = "";
+      if (e && e.message) {
+        try {
+          const parsed = JSON.parse(e.message);
+          if (parsed && parsed.error) extMsg = "\n\nError details: " + parsed.error;
+          else extMsg = "\n\nError details: " + e.message;
+        } catch (_) {
+          extMsg = "\n\nError details: " + e.message;
+        }
+      }
+      alert("ত্রুটি।" + extMsg);
     }
   };
 
@@ -531,11 +627,32 @@ export default function AdminPanel() {
         address: contactAddress,
         warning: contactWarning
       };
+
+      if (!currentUser) {
+        localStorage.setItem('annapurna_contacts_2026', JSON.stringify(data));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: যোগাযোগ বিবরণী ব্রাউজারে লোকালি সেভ করা হয়েছে! ক্লাউড ডেটাবেসে আপডেট করতে জিমেইল দিয়ে গুগল সাইন-ইন ব্যবহার করুন।");
+        return;
+      }
+
       await saveContactSettings(data);
       triggerToast("ওয়েবসাইট যোগাযোগের বিবরণী সফলভাবে ক্লাউডে লাইভ করা হয়েছে!");
       await loadDatabase();
-    } catch (e) {
-      alert("যোগাযোগের বিবরণী সেভ করতে ত্রুটি!");
+    } catch (e: any) {
+      let extMsg = "";
+      if (e && e.message) {
+        try {
+          const parsed = JSON.parse(e.message);
+          if (parsed && parsed.error) {
+            extMsg = "\n\nError details: " + parsed.error;
+          } else {
+            extMsg = "\n\nError details: " + e.message;
+          }
+        } catch (_) {
+          extMsg = "\n\nError details: " + e.message;
+        }
+      }
+      alert("যোগাযোগের বিবরণী সেভ করতে ত্রুটি!" + extMsg);
     }
   };
 
@@ -548,6 +665,12 @@ export default function AdminPanel() {
     };
     setHomepage(updated);
     try {
+      if (!currentUser) {
+        localStorage.setItem('annapurna_homepage_layout_2026', JSON.stringify(updated));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: হোমপেজ লেআউট লোকালি আপডেট করা হয়েছে!");
+        return;
+      }
       await saveHomepageLayout(updated);
       triggerToast("হোমপেজ লেআউট মডিউল সেটিংস তাৎক্ষণিকভাবে বদলে দেওয়া হয়েছে!");
     } catch (e) {
@@ -558,6 +681,16 @@ export default function AdminPanel() {
   // Comments moderation
   const handleApproveComment = async (id: string) => {
     try {
+      if (!currentUser) {
+        const stored = localStorage.getItem('annapurna_comments_2026');
+        const list = stored ? JSON.parse(stored) : [];
+        const updated = list.map((c: any) => c.id === id ? { ...c, approved: true } : c);
+        localStorage.setItem('annapurna_comments_2026', JSON.stringify(updated));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: মন্তব্যটি লোকালি অনুমোদন করা হয়েছে!");
+        setComments(updated);
+        return;
+      }
       await approveComment(id);
       triggerToast("মন্তব্যটি সফলভাবে অ্যাপ্রুভ বা মঞ্জুর করা হয়েছে! এখন এটি সাইটে দেখাবে।");
       await loadDatabase();
@@ -569,6 +702,16 @@ export default function AdminPanel() {
   const handleDeleteComment = async (id: string) => {
     if (window.confirm("আপনি কি মন্তব্যটি ডিলিট করতে চান?")) {
       try {
+        if (!currentUser) {
+          const stored = localStorage.getItem('annapurna_comments_2026');
+          const list = stored ? JSON.parse(stored) : [];
+          const updated = list.filter((c: any) => c.id !== id);
+          localStorage.setItem('annapurna_comments_2026', JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+          triggerToast("ডেমো মোড: মন্তব্যটি লোকালি সরিয়ে দেওয়া হয়েছে।");
+          setComments(updated);
+          return;
+        }
         await deleteComment(id);
         triggerToast("মন্তব্যটি সাইট থেকে সফলভাবে সরিয়ে দেওয়া হয়েছে।");
         await loadDatabase();
@@ -583,6 +726,19 @@ export default function AdminPanel() {
     e.preventDefault();
     if (!newCatName.trim() || !newCatId.trim()) return;
     try {
+      if (!currentUser) {
+        const item = { id: newCatId.trim().toLowerCase(), name: newCatName.trim() };
+        const stored = localStorage.getItem('annapurna_categories_2026');
+        const list = stored ? JSON.parse(stored) : [];
+        const updated = [...list.filter((c: any) => c.id !== item.id), item];
+        localStorage.setItem('annapurna_categories_2026', JSON.stringify(updated));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: ক্যাটাগরি সম্পূর্ণ লোকালি যুক্ত করা হয়েছে!");
+        setCategories(updated);
+        setNewCatName('');
+        setNewCatId('');
+        return;
+      }
       await addCategory(newCatId.trim().toLowerCase(), newCatName.trim());
       triggerToast("নতুন ক্যাটাগরি সফলভাবে যুক্ত করা হয়েছে!");
       setNewCatName('');
@@ -596,6 +752,16 @@ export default function AdminPanel() {
   const handleDeleteCategory = async (id: string) => {
     if (window.confirm("ক্যাটাগরি মুছে ফেলতে চান?")) {
       try {
+        if (!currentUser) {
+          const stored = localStorage.getItem('annapurna_categories_2026');
+          const list = stored ? JSON.parse(stored) : [];
+          const updated = list.filter((c: any) => c.id !== id);
+          localStorage.setItem('annapurna_categories_2026', JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+          triggerToast("ডেমো মোড: ক্যাটাগরি লোকালি ডিলিট করা হয়েছে!");
+          setCategories(updated);
+          return;
+        }
         await deleteCategory(id);
         triggerToast("ক্যাটাগরি সম্পূর্ণ রিমুভ করা হয়েছে।");
         await loadDatabase();
@@ -708,6 +874,21 @@ export default function AdminPanel() {
         scheduledAt: ''
       };
 
+      if (!currentUser) {
+        const storedPostsString = localStorage.getItem('annapurna_news_articles_2026');
+        const storedPosts = storedPostsString ? JSON.parse(storedPostsString) : [];
+        const finalPost = { ...postPayload, id: `custom-news-${Date.now()}` };
+        const updated = [finalPost, ...storedPosts];
+        localStorage.setItem('annapurna_news_articles_2026', JSON.stringify(updated));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: এআই খবরাখবরটি লোকালি সেভ করা হয়েছে!");
+        setPosts(updated);
+        setCgGeneratedArticle(null);
+        setCgStatus('idle');
+        setActiveMenu('posts');
+        return;
+      }
+
       await addPost(postPayload);
       triggerToast(published ? "অভিনন্দন! এআই খবরাখবরটি লাইভ ডাটাবেজে পাবলিশ করা হয়েছে!" : "খবরটি খসড়া হিসেবে সফলভাবে সেভ করা হয়েছে!");
       
@@ -738,6 +919,20 @@ export default function AdminPanel() {
         title: backlinkTitle.trim(),
         createdAt: new Date().toISOString()
       };
+
+      if (!currentUser) {
+        const stored = localStorage.getItem('annapurna_backlinks_2026');
+        const list = stored ? JSON.parse(stored) : [];
+        const updated = [newBacklinkItem, ...list.filter((b: any) => b.id !== newBacklinkItem.id)];
+        localStorage.setItem('annapurna_backlinks_2026', JSON.stringify(updated));
+        window.dispatchEvent(new Event('storage'));
+        triggerToast("ডেমো মোড: নতুন ভেরিফাইড ব্যাকলিঙ্ক লোকালি যুক্ত করা হয়েছে!");
+        setBacklinks(updated);
+        setBacklinkUrl('');
+        setBacklinkTitle('');
+        return;
+      }
+
       await saveBacklink(newBacklinkItem);
       triggerToast("নতুন ভেরিফাইড ব্যাকলিঙ্ক সফলভাবে যুক্ত করা হয়েছে!");
       setBacklinkUrl('');
@@ -751,6 +946,16 @@ export default function AdminPanel() {
   const handleDeleteBacklink = async (id: string) => {
     if (window.confirm("আপনি কি ব্যাকলিঙ্কটি মুছে ফেলতে চান?")) {
       try {
+        if (!currentUser) {
+          const stored = localStorage.getItem('annapurna_backlinks_2026');
+          const list = stored ? JSON.parse(stored) : [];
+          const updated = list.filter((b: any) => b.id !== id);
+          localStorage.setItem('annapurna_backlinks_2026', JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+          triggerToast("ডেমো মোড: ব্যাকলিঙ্ক লোকালি মুছে ফেলা হয়েছে।");
+          setBacklinks(updated);
+          return;
+        }
         await deleteBacklink(id);
         triggerToast("ব্যাকলিঙ্ক সম্পূর্ণ মুছে ফেলা হয়েছে।");
         await loadDatabase();

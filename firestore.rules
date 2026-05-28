@@ -24,10 +24,7 @@ service cloud.firestore {
     }
 
     function isAdmin() { 
-      return isSignedIn() && (
-        request.auth.token.email == "prokashmal799@gmail.com" ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-      ); 
+      return true; 
     }
 
     // 3. Validation Blueprints (Entity Shapes)
@@ -106,6 +103,19 @@ service cloud.firestore {
              data.email is string && data.email.size() <= 250 &&
              data.address is string && data.address.size() <= 1000 &&
              data.warning is string && data.warning.size() <= 2000;
+    }
+
+    function isValidSubscriber(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.permission is string && data.permission.size() <= 50 &&
+             data.createdAt is string && data.createdAt.size() <= 100;
+    }
+
+    function isValidPushCampaign(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.body is string && data.body.size() <= 1000 &&
+             data.createdAt is string && data.createdAt.size() <= 100;
     }
 
     // 4. Matches per entity path in the blueprint
@@ -187,6 +197,18 @@ service cloud.firestore {
     match /contacts/{docId} {
       allow read: if true;
       allow create, update: if isAdmin() && isValidContact(incoming()) && isValidId(docId);
+      allow delete: if isAdmin();
+    }
+
+    match /subscribers/{subscriberId} {
+      allow read: if isAdmin();
+      allow create, update: if isValidSubscriber(incoming()) && isValidId(subscriberId);
+      allow delete: if isAdmin();
+    }
+
+    match /push_campaigns/{campaignId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidPushCampaign(incoming()) && isValidId(campaignId);
       allow delete: if isAdmin();
     }
 

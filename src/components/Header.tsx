@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { Menu, X, Clock, HelpCircle, Bell, Search, ShieldCheck, Moon, Sun, Award } from 'lucide-react';
 import { TabId } from '../types';
 import { ALERTS_TICKER } from '../data';
@@ -215,13 +216,20 @@ export default function Header({
                     setActiveTab(link.id);
                     setIsOpen(false);
                   }}
-                  className={`rounded-lg px-2.5 py-1.5 text-[13px] font-bold transition-all ${
+                  className={`relative rounded-lg px-2.5 py-1.5 text-[13px] font-bold transition-all duration-300 ${
                     activeTab === link.id
-                      ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-sm'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-slate-800 hover:text-orange-600'
+                      ? 'text-white'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-orange-50/70 dark:hover:bg-slate-800/70 hover:text-orange-600'
                   }`}
                 >
-                  {link.label}
+                  <span className="relative z-10">{link.label}</span>
+                  {activeTab === link.id && (
+                    <motion.span
+                      layoutId="activeNavBackground"
+                      className="absolute inset-0 bg-gradient-to-r from-red-600 to-orange-500 rounded-lg shadow-sm"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                    />
+                  )}
                 </button>
               ))}
             </nav>
@@ -277,14 +285,21 @@ export default function Header({
                   setActiveTab(link.id);
                   setIsOpen(false);
                 }}
-                className={`flex items-center justify-between rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${
+                className={`relative flex items-center justify-between rounded-lg px-4 py-2.5 text-sm font-bold transition-all duration-300 ${
                   activeTab === link.id
-                    ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white shadow-xs'
-                    : 'text-gray-800 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-slate-800'
+                    ? 'text-white'
+                    : 'text-gray-800 dark:text-gray-300 hover:bg-orange-50/70 dark:hover:bg-slate-800/70'
                 }`}
               >
-                <span>{link.label}</span>
-                <span className="text-[10px] font-normal opacity-70">➔</span>
+                <span className="relative z-10">{link.label}</span>
+                <span className="relative z-10 text-[10px] font-normal opacity-70">➔</span>
+                {activeTab === link.id && (
+                  <motion.span
+                    layoutId="activeMobileNavBackground"
+                    className="absolute inset-0 bg-gradient-to-r from-red-600 to-orange-500 rounded-lg shadow-xs"
+                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  />
+                )}
               </button>
             ))}
           </nav>

@@ -155,12 +155,50 @@
         "warning": { "type": "string", "description": "Scam awareness and fee payment warning text" }
       },
       "required": ["id", "phone", "email", "address"]
+    },
+    "Subscriber": {
+      "title": "Subscriber",
+      "description": "Visitor Web Notification Subscriber entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique subscriber/device ID" },
+        "userAgent": { "type": "string", "description": "User browser details" },
+        "permission": { "type": "string", "description": "Permission status" },
+        "createdAt": { "type": "string", "description": "Subscription timestamp" },
+        "lastActive": { "type": "string", "description": "Last active tracking update" },
+        "language": { "type": "string", "description": "Browser user language" }
+      },
+      "required": ["id", "permission", "createdAt"]
+    },
+    "PushCampaign": {
+      "title": "PushCampaign",
+      "description": "Sent web notification broadcasts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique campaign ID" },
+        "title": { "type": "string", "description": "Alert title" },
+        "body": { "type": "string", "description": "Alert message content" },
+        "link": { "type": "string", "description": "Target redirection slug" },
+        "icon": { "type": "string", "description": "Icon type or preset key" },
+        "createdAt": { "type": "string", "description": "Timestamp when broadcasted" },
+        "sentBy": { "type": "string", "description": "Admin author metadata" },
+        "active": { "type": "boolean", "description": "Visible active campaign" }
+      },
+      "required": ["id", "title", "body", "createdAt"]
     }
   },
   "firestore": {
     "contacts/global": {
       "schema": "ContactSetting",
       "description": "Website dynamic contact information details"
+    },
+    "subscribers/{subscriberId}": {
+      "schema": "Subscriber",
+      "description": "Registered visitor push subscribers"
+    },
+    "push_campaigns/{campaignId}": {
+      "schema": "PushCampaign",
+      "description": "Admin sent push notification broadcasts"
     },
     "backlinks/{backlinkId}": {
       "schema": "Backlink",

@@ -8,7 +8,7 @@ import {
   query, where, orderBy, increment 
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
-import { NewsPost, Comment, AdSetting, ContactSetting } from '../types';
+import { NewsPost, Comment, AdSetting, ContactSetting, Subscriber, PushCampaign } from '../types';
 import { NEWS_ARTICLES, MOCK_COMMENTS, MOCK_ADS_CONFIG, ALERTS_TICKER, SCHEME_STATS } from '../data';
 
 // --- Local Storage Keys for Fallback ---
@@ -791,6 +791,60 @@ export async function deleteBacklink(id: string): Promise<void> {
   } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
     throw err;
+  }
+}
+
+// ==========================================
+// 10. WEB PUSH NOTIFICATION & SUBSCRIBERS
+// ==========================================
+
+export async function saveSubscriber(item: Subscriber): Promise<void> {
+  const collectionName = 'subscribers';
+  try {
+    await setDoc(doc(db, collectionName, item.id), item);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${collectionName}/${item.id}`);
+    throw err;
+  }
+}
+
+export async function fetchSubscribers(): Promise<Subscriber[]> {
+  const collectionName = 'subscribers';
+  try {
+    const q = query(collection(db, collectionName));
+    const snapshot = await getDocs(q);
+    const items: Subscriber[] = [];
+    snapshot.forEach((doc) => items.push(doc.data() as Subscriber));
+    return items;
+  } catch (err) {
+    console.warn('Firestore fetchSubscribers failed:', err);
+    return [];
+  }
+}
+
+export async function savePushCampaign(item: PushCampaign): Promise<void> {
+  const collectionName = 'push_campaigns';
+  try {
+    await setDoc(doc(db, collectionName, item.id), item);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${collectionName}/${item.id}`);
+    throw err;
+  }
+}
+
+export async function fetchPushCampaigns(): Promise<PushCampaign[]> {
+  const collectionName = 'push_campaigns';
+  try {
+    const q = query(collection(db, collectionName));
+    const snapshot = await getDocs(q);
+    const items: PushCampaign[] = [];
+    snapshot.forEach((doc) => items.push(doc.data() as PushCampaign));
+    // Sort buy timestamp descending
+    items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return items;
+  } catch (err) {
+    console.warn('Firestore fetchPushCampaigns failed:', err);
+    return [];
   }
 }
 

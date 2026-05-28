@@ -23,7 +23,8 @@ import {
   ExternalLink,
   MessageSquare,
   Facebook,
-  Send as TelegramIcon
+  Send as TelegramIcon,
+  Bell
 } from 'lucide-react';
 
 import { TabId, AdSetting } from './types';
@@ -50,13 +51,15 @@ import {
 
 import { ContactSetting } from './types';
 
-import { auth } from './lib/firebase';
+import { auth, db } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
 
 // Component imports
 import Header from './components/Header';
 import Hero from './components/Hero';
 import BannerAds from './components/BannerAds';
+import PushNotificationPrompt from './components/PushNotificationPrompt';
 import EligibilityChecker from './components/EligibilityChecker';
 import StatusChecker from './components/StatusChecker';
 import NewsSection from './components/NewsSection';
@@ -84,6 +87,35 @@ export default function App() {
   const [faqOpenIndex, setFaqOpenIndex] = useState<number | null>(0);
   const [showNotification, setShowNotification] = useState(true);
 
+  // Directional Tab Entrance Animations State
+  const [prevTab, setPrevTab] = useState<TabId>(activeTab);
+  const [direction, setDirection] = useState<number>(0);
+
+  useEffect(() => {
+    const tabsOrder: TabId[] = [
+      'home',
+      'eligibility',
+      'form_filler',
+      'apply',
+      'status',
+      'documents',
+      'news',
+      'faq',
+      'contact',
+      'admin',
+      'about',
+      'privacy',
+      'terms',
+      'disclaimer'
+    ];
+    const currIdx = tabsOrder.indexOf(activeTab);
+    const prevIdx = tabsOrder.indexOf(prevTab);
+    if (currIdx !== prevIdx && currIdx !== -1 && prevIdx !== -1) {
+      setDirection(currIdx >= prevIdx ? 1 : -1);
+      setPrevTab(activeTab);
+    }
+  }, [activeTab, prevTab]);
+
   // Layout toggles & dynamic configurations states
   const [layoutConfig, setLayoutConfig] = useState<HomepageLayout | null>(null);
   const [seoConfig, setSeoConfig] = useState<SeoSetting | null>(null);
@@ -95,6 +127,52 @@ export default function App() {
   const [contactForm, setContactForm] = useState({ name: '', phone: '', query: '' });
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [activeNotification, setActiveNotification] = useState<{ title: string; body: string; link?: string } | null>(null);
+
+  // Listen for Live Web Push Campaigns from Admin in Realtime
+  useEffect(() => {
+    const q = query(collection(db, 'push_campaigns'), orderBy('createdAt', 'desc'), limit(1));
+    const sessionStartTime = Date.now();
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          const createdTime = new Date(data.createdAt).getTime();
+          // Only trigger if created after session started
+          if (createdTime > sessionStartTime - 3000) {
+            // Trigger native notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification(data.title, {
+                  body: data.body,
+                  icon: data.icon || 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=192'
+                });
+              } catch (e) {
+                console.warn('Native Browser notification blocked/unsupported:', e);
+              }
+            }
+            
+            // Trigger gorgeous real-time UI notification popup
+            setActiveNotification({
+              title: data.title,
+              body: data.body,
+              link: data.link
+            });
+
+            // Auto dismiss after 8 seconds
+            setTimeout(() => {
+              setActiveNotification(null);
+            }, 8000);
+          }
+        }
+      });
+    }, (error) => {
+      console.warn("Push campaign snapshot error:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Monitor administrator login state
   useEffect(() => {
@@ -392,13 +470,37 @@ export default function App() {
           
           {/* LEFT COLUMN: Main Dynamic Content Tabs (Column Span 8) */}
           <div className="lg:col-span-8 space-y-8">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="wait" custom={direction}>
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.25 }}
+                custom={direction}
+                variants={{
+                  enter: (dir: number) => ({
+                    opacity: 0,
+                    x: dir * 24,
+                    scale: 0.99,
+                    filter: "blur(4px)"
+                  }),
+                  center: {
+                    opacity: 1,
+                    x: 0,
+                    scale: 1,
+                    filter: "blur(0px)"
+                  },
+                  exit: (dir: number) => ({
+                    opacity: 0,
+                    x: dir * -24,
+                    scale: 0.99,
+                    filter: "blur(4px)"
+                  })
+                }}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{
+                  duration: 0.28,
+                  ease: [0.16, 1, 0.3, 1]
+                }}
               >
                 {activeTab === 'home' && (
                   <div className="space-y-8">
@@ -1087,6 +1189,67 @@ export default function App() {
 
       {/* Floating push permissions, scroll, whatsapp popups controllers */}
       <FloatingActions />
+
+      {/* Web Push Notification subscription prompt */}
+      <PushNotificationPrompt />
+
+      {/* Real-time In-App Push Notification banner */}
+      <AnimatePresence>
+        {activeNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: -100, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: -100, x: '-50%' }}
+            transition={{ type: 'spring', damping: 18, stiffness: 120 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 w-[92%] sm:w-[480px] bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-orange-500 rounded-2xl shadow-2xl z-50 p-4 font-sans text-white overflow-hidden"
+          >
+            {/* Pulsing indicator */}
+            <div className="absolute top-2 right-2 flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">সরাসরি ঘোষণা</span>
+            </div>
+
+            <div className="flex gap-4">
+              <div className="p-2.5 bg-orange-600/15 border border-orange-500/30 rounded-xl text-orange-400 h-fit shrink-0">
+                <Bell className="h-6 w-6 animate-swing" />
+              </div>
+
+              <div className="flex-1 space-y-2">
+                <h5 className="text-[13px] font-extrabold pr-10 text-orange-400 leading-snug">
+                  {activeNotification.title}
+                </h5>
+                <p className="text-[11px] text-slate-350 leading-relaxed font-semibold">
+                  {activeNotification.body}
+                </p>
+
+                <div className="flex items-center gap-2 pt-1">
+                  {activeNotification.link && (
+                    <button
+                      onClick={() => {
+                        setActiveTab(activeNotification.link as TabId);
+                        window.scrollTo({ top: 350, behavior: 'smooth' });
+                        setActiveNotification(null);
+                      }}
+                      className="bg-orange-600 hover:bg-orange-700 text-white font-black text-[10px] uppercase tracking-wide px-3 py-1.5 rounded-lg active:scale-95 transition cursor-pointer"
+                    >
+                      বিস্তারিত দেখুন ➔
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setActiveNotification(null)}
+                    className="border border-slate-800 hover:bg-slate-800/80 text-slate-400 hover:text-white font-black text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition"
+                  >
+                    বন্ধ করুন
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

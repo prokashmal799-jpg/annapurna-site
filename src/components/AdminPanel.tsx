@@ -31,8 +31,10 @@ import {
   fetchHomepageLayout, saveHomepageLayout, HomepageLayout,
   fetchCategories, addCategory, deleteCategory, CategoryItem,
   fetchAnalytics, AnalyticStats,
-  fetchBacklinks, saveBacklink, deleteBacklink, BacklinkItem
+  fetchBacklinks, saveBacklink, deleteBacklink, BacklinkItem,
+  fetchSubscribers, fetchPushCampaigns, savePushCampaign
 } from '../lib/dbSync';
+import { Subscriber, PushCampaign } from '../types';
 
 const IMAGE_PRESETS = [
   {
@@ -162,7 +164,14 @@ export default function AdminPanel() {
   // --- INTEGRATED AUTH RECRUITER ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
+      if (user && user.email !== "prokashmal799@gmail.com") {
+        signOut(auth).then(() => {
+          setLoginError('দুঃখিত, এই গুগল অ্যাকাউন্ট দিয়ে প্রবেশাধিকার নেই! শুধুমাত্র এডমিন প্রবেশ করতে পারবেন।');
+        });
+        setCurrentUser(null);
+      } else {
+        setCurrentUser(user);
+      }
       setAuthLoading(false);
     });
     return () => unsubscribe();
@@ -317,7 +326,7 @@ export default function AdminPanel() {
 
   const handleCustomLogin = (e: FormEvent) => {
     e.preventDefault();
-    if (customUsername.trim() === 'admin' && customPassword === 'admin') {
+    if (customUsername.trim() === 'admin' && customPassword === 'Pradip@01') {
       setSessionAuth(true);
       sessionStorage.setItem('annapurna_session_auth', 'true');
       triggerToast('এডমিন অ্যাকাউন্টে সফলভাবে লগইন হয়েছে!');
@@ -341,10 +350,33 @@ export default function AdminPanel() {
     setLoginError('');
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      triggerToast('গুগল অ্যাকাউন্টের মাধ্যমে সফলভাবে সাইন-ইন করা হয়েছে!');
+      const result = await signInWithPopup(auth, provider);
+      if (result.user && result.user.email !== "prokashmal799@gmail.com") {
+        await signOut(auth);
+        setLoginError('দুঃখিত, এই গুগল অ্যাকাউন্ট দিয়ে প্রবেশাধিকার নেই! শুধুমাত্র এডমিন প্রবেশ করতে পারবেন।');
+      } else {
+        triggerToast('গুগল অ্যাকাউন্টের মাধ্যমে সফলভাবে সাইন-ইন করা হয়েছে!');
+      }
     } catch (e: any) {
-      setLoginError(e.message || 'সাইন-ইন করতে সমস্যা হয়েছে!');
+      console.error("Google login failed details:", e);
+      let errMsg = 'গুগল সাইন-ইন করতে সমস্যা হয়েছে!';
+      
+      const errCode = e.code || '';
+      if (errCode === 'auth/popup-blocked') {
+        errMsg = '⚠️ পপআপ উইন্ডো ব্লক করা হয়েছে! AI Studio আইফ্রেমের জন্য এটি হতে পারে। অনুগ্রহ করে উপর থেকে সাইটের সম্পুর্ণ লিংক নতুন ট্যাবে (Open in New Tab) ওপেন করে জিমেইল দিয়ে সাইন-ইন করুন।';
+      } else if (errCode === 'auth/unauthorized-domain') {
+        errMsg = '⚠️ এই ডোমেইনটি আপনার ফায়ারবেস অ্যাকাউন্টে অনুমোদিত (Authorized) ডোমেইন লিস্টে নেই! Firebase Console > Authentication > Settings > Authorized Domains-এ এই ডোমেইনটি যুক্ত করুন।';
+      } else if (errCode === 'auth/operation-not-allowed') {
+        errMsg = '⚠️ আপনার Firebase প্রজেক্টে Google Sign-in সক্রিয় করা হয়নি! Firebase Console > Authentication > Sign-in method-এ গিয়ে Google সক্রিয় (Enable) করুন।';
+      } else if (errCode === 'auth/popup-closed-by-user') {
+        errMsg = 'নিবন্ধন উইন্ডোটি আপনি বন্ধ করে দিয়েছেন। আবার চেষ্টা করুন।';
+      } else if (errCode === 'auth/cancelled-popup-request') {
+        errMsg = 'পপআপ বাতিল করা হয়েছে। অনুগ্রহ করে পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।';
+      } else {
+        errMsg = `ত্রুটি (${errCode}): ${e.message || 'দয়া করে আপনার ফায়ারবেস কনসোল কনফিগারেশন চেক করুন।'}`;
+      }
+      
+      setLoginError(errMsg);
     }
   };
 
@@ -370,7 +402,7 @@ export default function AdminPanel() {
     };
 
     try {
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         const id = editingPostId || `custom-news-${Date.now()}`;
         const finalPost = { ...postPayload, id };
         const storedPostsString = localStorage.getItem('annapurna_news_articles_2026');
@@ -448,7 +480,7 @@ export default function AdminPanel() {
   const handleDeletePost = async (id: string) => {
     if (window.confirm("আপনি কি নিশ্চিতভাবে এই খবরটি মুছে ফেলতে চান? এটি চিরতরে ক্লাউড ডাটাবেজ থেকে মুছে যাবে।")) {
       try {
-        if (!currentUser) {
+        if (!currentUser && !sessionAuth) {
           const storedPostsString = localStorage.getItem('annapurna_news_articles_2026');
           const storedPosts = storedPostsString ? JSON.parse(storedPostsString) : [];
           const updated = storedPosts.filter((p: any) => p.id !== id);
@@ -482,7 +514,7 @@ export default function AdminPanel() {
     };
 
     try {
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         const storedTickersString = localStorage.getItem('annapurna_tickers_2026');
         const storedTickers = storedTickersString ? JSON.parse(storedTickersString) : [];
         const updated = [payload, ...storedTickers.filter((tk: any) => tk.id !== id)];
@@ -511,7 +543,7 @@ export default function AdminPanel() {
   const handleDeleteTicker = async (id: string) => {
     if (window.confirm("টিকারটি ডিলিট করতে চান?")) {
       try {
-        if (!currentUser) {
+        if (!currentUser && !sessionAuth) {
           const storedTickersString = localStorage.getItem('annapurna_tickers_2026');
           const storedTickers = storedTickersString ? JSON.parse(storedTickersString) : [];
           const updated = storedTickers.filter((t: any) => t.id !== id);
@@ -547,7 +579,7 @@ export default function AdminPanel() {
         { id: 'ad-in-article-2', type: 'rectangle', active: adActiveIn2, code: adCodeInArticle2, title: "In-Article 2", ctaText: "Apply", linkUrl: "" },
       ];
 
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         localStorage.setItem('annapurna_ad_settings_2026', JSON.stringify(adsList));
         window.dispatchEvent(new Event('storage'));
         triggerToast("ডেমো মোড: অ্যাডস কোড লোকালি সেভ করা হয়েছে! ডাটাবেসে আপডেট করতে গুগল সাইন-ইন ব্যবহার করুন।");
@@ -590,7 +622,7 @@ export default function AdminPanel() {
         googleAdSenseId: seoGoogleAdSenseId
       };
 
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         localStorage.setItem('annapurna_seo_settings_2026', JSON.stringify(data));
         window.dispatchEvent(new Event('storage'));
         triggerToast("ডেমো মোড: ওয়েবসাইট এসইও মেটা লোকালি সেভ করা হয়েছে!");
@@ -628,7 +660,7 @@ export default function AdminPanel() {
         warning: contactWarning
       };
 
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         localStorage.setItem('annapurna_contacts_2026', JSON.stringify(data));
         window.dispatchEvent(new Event('storage'));
         triggerToast("ডেমো মোড: যোগাযোগ বিবরণী ব্রাউজারে লোকালি সেভ করা হয়েছে! ক্লাউড ডেটাবেসে আপডেট করতে জিমেইল দিয়ে গুগল সাইন-ইন ব্যবহার করুন।");
@@ -665,7 +697,7 @@ export default function AdminPanel() {
     };
     setHomepage(updated);
     try {
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         localStorage.setItem('annapurna_homepage_layout_2026', JSON.stringify(updated));
         window.dispatchEvent(new Event('storage'));
         triggerToast("ডেমো মোড: হোমপেজ লেআউট লোকালি আপডেট করা হয়েছে!");
@@ -681,7 +713,7 @@ export default function AdminPanel() {
   // Comments moderation
   const handleApproveComment = async (id: string) => {
     try {
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         const stored = localStorage.getItem('annapurna_comments_2026');
         const list = stored ? JSON.parse(stored) : [];
         const updated = list.map((c: any) => c.id === id ? { ...c, approved: true } : c);
@@ -702,7 +734,7 @@ export default function AdminPanel() {
   const handleDeleteComment = async (id: string) => {
     if (window.confirm("আপনি কি মন্তব্যটি ডিলিট করতে চান?")) {
       try {
-        if (!currentUser) {
+        if (!currentUser && !sessionAuth) {
           const stored = localStorage.getItem('annapurna_comments_2026');
           const list = stored ? JSON.parse(stored) : [];
           const updated = list.filter((c: any) => c.id !== id);
@@ -726,7 +758,7 @@ export default function AdminPanel() {
     e.preventDefault();
     if (!newCatName.trim() || !newCatId.trim()) return;
     try {
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         const item = { id: newCatId.trim().toLowerCase(), name: newCatName.trim() };
         const stored = localStorage.getItem('annapurna_categories_2026');
         const list = stored ? JSON.parse(stored) : [];
@@ -752,7 +784,7 @@ export default function AdminPanel() {
   const handleDeleteCategory = async (id: string) => {
     if (window.confirm("ক্যাটাগরি মুছে ফেলতে চান?")) {
       try {
-        if (!currentUser) {
+        if (!currentUser && !sessionAuth) {
           const stored = localStorage.getItem('annapurna_categories_2026');
           const list = stored ? JSON.parse(stored) : [];
           const updated = list.filter((c: any) => c.id !== id);
@@ -874,7 +906,7 @@ export default function AdminPanel() {
         scheduledAt: ''
       };
 
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         const storedPostsString = localStorage.getItem('annapurna_news_articles_2026');
         const storedPosts = storedPostsString ? JSON.parse(storedPostsString) : [];
         const finalPost = { ...postPayload, id: `custom-news-${Date.now()}` };
@@ -920,7 +952,7 @@ export default function AdminPanel() {
         createdAt: new Date().toISOString()
       };
 
-      if (!currentUser) {
+      if (!currentUser && !sessionAuth) {
         const stored = localStorage.getItem('annapurna_backlinks_2026');
         const list = stored ? JSON.parse(stored) : [];
         const updated = [newBacklinkItem, ...list.filter((b: any) => b.id !== newBacklinkItem.id)];
@@ -946,7 +978,7 @@ export default function AdminPanel() {
   const handleDeleteBacklink = async (id: string) => {
     if (window.confirm("আপনি কি ব্যাকলিঙ্কটি মুছে ফেলতে চান?")) {
       try {
-        if (!currentUser) {
+        if (!currentUser && !sessionAuth) {
           const stored = localStorage.getItem('annapurna_backlinks_2026');
           const list = stored ? JSON.parse(stored) : [];
           const updated = list.filter((b: any) => b.id !== id);
@@ -1102,19 +1134,19 @@ export default function AdminPanel() {
 
             <div className="relative flex items-center justify-center py-1">
               <div className="absolute inset-x-0 border-t border-gray-200 dark:border-slate-800" />
-              <span className="relative px-3 bg-white dark:bg-slate-900 text-[10px] text-gray-400 uppercase font-black">অথবা ডেমো প্যানেল</span>
+              <span className="relative px-3 bg-white dark:bg-slate-900 text-[10px] text-gray-400 uppercase font-black">অথবা সিকিউর এডমিন আইডি</span>
             </div>
 
             {/* Offline backup credentials fallback mechanism */}
             <form onSubmit={handleCustomLogin} className="space-y-3">
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">ইউজার আইডি</label>
+                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">এডমিন ইউজার আইডি</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><User className="h-4 w-4" /></span>
                   <input
                     type="text"
                     required
-                    placeholder="উদা: admin"
+                    placeholder="এডমিন আইডি লিখুন"
                     value={customUsername}
                     onChange={(e) => setCustomUsername(e.target.value)}
                     className="w-full pl-9 pr-3 py-2.5 border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 text-xs text-slate-900 dark:text-white rounded-lg focus:ring-1 focus:ring-orange-500 outline-none"
@@ -1129,7 +1161,7 @@ export default function AdminPanel() {
                   <input
                     type="password"
                     required
-                    placeholder="উদা: admin"
+                    placeholder="পাসওয়ার্ড লিখুন"
                     value={customPassword}
                     onChange={(e) => setCustomPassword(e.target.value)}
                     className="w-full pl-9 pr-3 py-2.5 border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 text-xs text-slate-900 dark:text-white rounded-lg focus:ring-1 focus:ring-orange-500 outline-none"
@@ -1142,7 +1174,7 @@ export default function AdminPanel() {
                 className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-r from-red-650 to-orange-500 hover:from-red-700 hover:to-orange-600 text-white font-extrabold text-xs py-3 rounded-lg active:scale-95 transition duration-250 cursor-pointer border-0 shadow-sm"
               >
                 <LogIn className="h-4 w-4" />
-                <span>২. অফলাইন লাইভ ডেমো লগইন</span>
+                <span>২. সিকিউর এডমিন লগইন</span>
               </button>
             </form>
           </div>

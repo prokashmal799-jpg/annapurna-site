@@ -64,3 +64,23 @@ export interface ContactSetting {
   warning: string;
 }
 
+export interface Subscriber {
+  id: string;
+  userAgent: string;
+  permission: string;
+  createdAt: string;
+  lastActive?: string;
+  language?: string;
+}
+
+export interface PushCampaign {
+  id: string;
+  title: string;
+  body: string;
+  link: string;
+  icon: string;
+  createdAt: string;
+  sentBy?: string;
+  active?: boolean;
+}
+

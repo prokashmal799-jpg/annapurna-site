@@ -1,0 +1,206 @@
+{
+  "entities": {
+    "Post": {
+      "title": "Post",
+      "description": "Bengali news article post managed by the admin panel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique article ID" },
+        "title": { "type": "string", "description": "Post title in Bengali" },
+        "slug": { "type": "string", "description": "Auto-generated English URL slug" },
+        "category": { "type": "string", "description": "Category name or ID" },
+        "excerpt": { "type": "string", "description": "Short description of the post" },
+        "content": { "type": "string", "description": "Detailed article content in HTML/Rich Text or Text" },
+        "image": { "type": "string", "description": "Thumbnail or cover banner image URL" },
+        "date": { "type": "string", "description": "Formatted date text for readers" },
+        "views": { "type": "integer", "description": "Number of unique page views" },
+        "published": { "type": "boolean", "description": "Publish status of post" },
+        "scheduledAt": { "type": "string", "description": "Timestamp ISO string for scheduled publishing, can be null or empty" },
+        "createdAt": { "type": "string", "description": "Standard timestamp for when the post was created" },
+        "updatedAt": { "type": "string", "description": "Standard timestamp for the last edit" }
+      },
+      "required": ["id", "title", "category", "excerpt", "content", "image", "views", "published"]
+    },
+    "Ticker": {
+      "title": "Ticker",
+      "description": "Breaking news ticker string with optional active link",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Ticker document ID" },
+        "text": { "type": "string", "description": "Breaking news text in Bengali" },
+        "link": { "type": "string", "description": "Optional in-app or outbound link URL" },
+        "active": { "type": "boolean", "description": "Active visibility switch" },
+        "createdAt": { "type": "string", "description": "Timestamp for when created" }
+      },
+      "required": ["id", "text", "active"]
+    },
+    "AdSetting": {
+      "title": "AdSetting",
+      "description": "AdSense ad placements and custom banners script or image banner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Ad placement ID (e.g. header, sidebar, inline)" },
+        "title": { "type": "string", "description": "Optional admin label" },
+        "code": { "type": "string", "description": "Raw HTML/JS AdSense code snippet or banner embed" },
+        "type": { "type": "string", "enum": ["leaderboard", "rectangle", "sidebar", "responsive"], "description": "Visual format of placement" },
+        "active": { "type": "boolean", "description": "Whether the ad code or banner should render" },
+        "imageUrl": { "type": "string", "description": "Upload/custom image link for banner alternative" },
+        "linkUrl": { "type": "string", "description": "Destination link alternative" }
+      },
+      "required": ["id", "type", "active"]
+    },
+    "SeoSetting": {
+      "title": "SeoSetting",
+      "description": "Global SEO configurations and index headers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique key (usually 'global')" },
+        "title": { "type": "string", "description": "Global meta title suffix" },
+        "description": { "type": "string", "description": "Global meta description tag" },
+        "keywords": { "type": "string", "description": "Comma-separated meta keywords" },
+        "author": { "type": "string", "description": "Metatag author identity" },
+        "ogImage": { "type": "string", "description": "Social OG tag default preview image" }
+      },
+      "required": ["id", "title", "description"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Editorial category definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique slug identifier" },
+        "name": { "type": "string", "description": "Display name in Bengali" },
+        "count": { "type": "integer", "description": "Number of articles in category" }
+      },
+      "required": ["id", "name"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "User feedback and post replies requiring admin moderation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique comment ID" },
+        "postId": { "type": "string", "description": "Target article ID key" },
+        "author": { "type": "string", "description": "Commenter display name" },
+        "content": { "type": "string", "description": "Text body of the comment" },
+        "date": { "type": "string", "description": "Human readable date string" },
+        "likes": { "type": "integer", "description": "Number of approval votes" },
+        "approved": { "type": "boolean", "description": "Moderator approved visibility flag" },
+        "createdAt": { "type": "string", "description": "Timestamp for sorting" }
+      },
+      "required": ["id", "postId", "author", "content", "approved"]
+    },
+    "Analytic": {
+      "title": "Analytic",
+      "description": "Website visitor and metrics analytics tracker",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Date ID segment (e.g. '2026-05-28' or 'total')" },
+        "visitors": { "type": "integer", "description": "Distinct visitor sessions counted" },
+        "pageviews": { "type": "integer", "description": "Total page interaction counts" }
+      },
+      "required": ["id", "visitors", "pageviews"]
+    },
+    "Homepage": {
+      "title": "Homepage",
+      "description": "Active status of homepage sections toggle configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier (e.g., 'layout')" },
+        "heroEnabled": { "type": "boolean", "description": "Visibility of welcome banners" },
+        "tickerEnabled": { "type": "boolean", "description": "Visibility of the breaking news alert" },
+        "newsEnabled": { "type": "boolean", "description": "Visibility of latest editorial news feed" },
+        "calculatorEnabled": { "type": "boolean", "description": "Visibility of age / eligibility validator" },
+        "statusCheckerEnabled": { "type": "boolean", "description": "Visibility of online status application query helper" },
+        "documentsEnabled": { "type": "boolean", "description": "Visibility of document checklists block" },
+        "faqEnabled": { "type": "boolean", "description": "Visibility of question and answer segment" }
+      },
+      "required": ["id", "heroEnabled", "tickerEnabled", "newsEnabled", "calculatorEnabled"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Admin access control definitions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "User UID from Firebase Auth" },
+        "email": { "type": "string", "description": "User email address" },
+        "role": { "type": "string", "description": "Access privileges tier, e.g. 'administrator'" },
+        "name": { "type": "string", "description": "Display name of the admin" }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "Backlink": {
+      "title": "Backlink",
+      "description": "Verified external sharing backlinks displayed in the footer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique backlink ID" },
+        "url": { "type": "string", "description": "Target external shared URL (e.g., Facebook, Telegram)" },
+        "platform": { "type": "string", "description": "Platform name, e.g., facebook, telegram" },
+        "title": { "type": "string", "description": "Display text or description label" },
+        "createdAt": { "type": "string", "description": "Timestamp ISO string for creation" }
+      },
+      "required": ["id", "url", "platform", "title"]
+    },
+    "ContactSetting": {
+      "title": "ContactSetting",
+      "description": "Dynamic configuration of contact page details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Dynamic contact document id, usually global" },
+        "phone": { "type": "string", "description": "Support help phone number" },
+        "phoneSubtext": { "type": "string", "description": "Support phone availability timings info" },
+        "email": { "type": "string", "description": "Official support email address" },
+        "address": { "type": "string", "description": "Women and child welfare primary physical address" },
+        "warning": { "type": "string", "description": "Scam awareness and fee payment warning text" }
+      },
+      "required": ["id", "phone", "email", "address"]
+    }
+  },
+  "firestore": {
+    "contacts/global": {
+      "schema": "ContactSetting",
+      "description": "Website dynamic contact information details"
+    },
+    "backlinks/{backlinkId}": {
+      "schema": "Backlink",
+      "description": "Collection of verified external sharing backlinks"
+    },
+    "posts/{postId}": {
+      "schema": "Post",
+      "description": "Collection of Bengali news articles"
+    },
+    "tickers/{tickerId}": {
+      "schema": "Ticker",
+      "description": "Breaking news marquee tickers"
+    },
+    "ads/{adId}": {
+      "schema": "AdSetting",
+      "description": "AdSense ad placeholders codes and image ad fallback data"
+    },
+    "seo/global": {
+      "schema": "SeoSetting",
+      "description": "Website global SEO metadata configuration document"
+    },
+    "categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Category tags for grouping news"
+    },
+    "comments/{commentId}": {
+      "schema": "Comment",
+      "description": "User feedback comments requiring moderation"
+    },
+    "analytics/{metricId}": {
+      "schema": "Analytic",
+      "description": "Daily aggregated site traffic and performance statistics"
+    },
+    "homepage/layout": {
+      "schema": "Homepage",
+      "description": "Control hub layout for showing/hiding landing sections"
+    },
+    "admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Authorized administrators list"
+    }
+  }
+}

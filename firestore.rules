@@ -1,0 +1,199 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global safety net catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global architectural constraints & helpers
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function incoming() { 
+      return request.resource.data; 
+    }
+    
+    function existing() { 
+      return resource.data; 
+    }
+    
+    function isSignedIn() { 
+      return request.auth != null; 
+    }
+
+    function isAdmin() { 
+      return isSignedIn() && (
+        request.auth.token.email == "prokashmal799@gmail.com" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      ); 
+    }
+
+    // 3. Validation Blueprints (Entity Shapes)
+    function isValidPost(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.slug is string && data.slug.size() <= 200 &&
+             data.category is string && data.category.size() <= 100 &&
+             data.excerpt is string && data.excerpt.size() <= 500 &&
+             data.content is string && data.content.size() <= 100000 &&
+             data.image is string && data.image.size() <= 2000 &&
+             data.date is string && data.date.size() <= 100 &&
+             data.views is int &&
+             data.published is bool;
+    }
+
+    function isValidTicker(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.text is string && data.text.size() <= 500 &&
+             data.active is bool;
+    }
+
+    function isValidAdSetting(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.type is string && data.type.size() <= 100 &&
+             data.active is bool;
+    }
+
+    function isValidBacklink(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.url is string && data.url.size() <= 1000 &&
+             data.platform is string && data.platform.size() <= 100 &&
+             data.title is string && data.title.size() <= 300;
+    }
+
+    function isValidSeo(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 1000;
+    }
+
+    function isValidCategory(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 100;
+    }
+
+    function isValidComment(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.postId is string && data.postId.size() <= 128 &&
+             data.author is string && data.author.size() <= 150 &&
+             data.content is string && data.content.size() <= 3000 &&
+             data.approved is bool;
+    }
+
+    function isValidAnalytic(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.visitors is int &&
+             data.pageviews is int;
+    }
+
+    function isValidHomepage(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.heroEnabled is bool &&
+             data.tickerEnabled is bool &&
+             data.newsEnabled is bool &&
+             data.calculatorEnabled is bool &&
+             data.statusCheckerEnabled is bool &&
+             data.documentsEnabled is bool &&
+             data.faqEnabled is bool;
+    }
+
+    function isValidContact(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.phone is string && data.phone.size() <= 200 &&
+             data.phoneSubtext is string && data.phoneSubtext.size() <= 500 &&
+             data.email is string && data.email.size() <= 250 &&
+             data.address is string && data.address.size() <= 1000 &&
+             data.warning is string && data.warning.size() <= 2000;
+    }
+
+    // 4. Matches per entity path in the blueprint
+    match /posts/{postId} {
+      allow read: if (resource.data.published == true) || isAdmin();
+      allow create: if isAdmin() && isValidPost(incoming()) && isValidId(postId);
+      allow delete: if isAdmin();
+      allow update: if (isAdmin() && isValidPost(incoming())) || (
+        // Anon incrementing view count
+        incoming().diff(existing()).affectedKeys().hasOnly(['views']) &&
+        incoming().id == existing().id &&
+        incoming().title == existing().title &&
+        incoming().views == existing().views + 1
+      );
+    }
+
+    match /tickers/{tickerId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidTicker(incoming()) && isValidId(tickerId);
+      allow delete: if isAdmin();
+    }
+
+    match /backlinks/{backlinkId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidBacklink(incoming()) && isValidId(backlinkId);
+      allow delete: if isAdmin();
+    }
+
+    match /ads/{adId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidAdSetting(incoming()) && isValidId(adId);
+      allow delete: if isAdmin();
+    }
+
+    match /seo/{docId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidSeo(incoming()) && isValidId(docId);
+      allow delete: if isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidCategory(incoming()) && isValidId(categoryId);
+      allow delete: if isAdmin();
+    }
+
+    match /comments/{commentId} {
+      // Direct Query Security: ensure query parameters check list values securely
+      allow list: if (resource.data.approved == true) || isAdmin();
+      allow get: if (resource.data.approved == true) || isAdmin();
+      allow create: if isValidComment(incoming()) && incoming().approved == false && incoming().likes == 0 && isValidId(commentId);
+      allow delete: if isAdmin();
+      allow update: if (isAdmin() && isValidComment(incoming())) || (
+        // Anon liking comments
+        incoming().diff(existing()).affectedKeys().hasOnly(['likes']) &&
+        incoming().id == existing().id &&
+        incoming().likes == existing().likes + 1
+      );
+    }
+
+    match /analytics/{metricId} {
+      allow read: if true;
+      allow create: if isValidAnalytic(incoming()) && isValidId(metricId);
+      allow delete: if isAdmin();
+      allow update: if (isAdmin() && isValidAnalytic(incoming())) || (
+        incoming().id == existing().id && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['visitors', 'pageviews']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['pageviews'])
+        )
+      );
+    }
+
+    match /homepage/{docId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidHomepage(incoming()) && isValidId(docId);
+      allow delete: if isAdmin();
+    }
+
+    match /contacts/{docId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidContact(incoming()) && isValidId(docId);
+      allow delete: if isAdmin();
+    }
+
+    match /admins/{adminId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == adminId);
+      allow create, update: if isAdmin() && isValidId(adminId);
+      allow delete: if isAdmin();
+    }
+  }
+}

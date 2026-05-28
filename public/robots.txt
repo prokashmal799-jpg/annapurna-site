@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api
+
+Sitemap: https://annapurna-bhandar-yojana-2026.wb.gov.in/sitemap.xml

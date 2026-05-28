@@ -1,0 +1,6 @@
+{
+  "name": "Annapurna Bhandar Yojana 2026",
+  "description": "অন্নপূর্ণা ভান্ডার যোজনা ২০২৬ পোর্টাল - যোগ্যতা, অনলাইন আবেদন এবং পেমেন্ট স্ট্যাটাস চেক করার সম্পূর্ণ তথ্য",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
